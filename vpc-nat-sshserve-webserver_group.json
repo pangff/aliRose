@@ -1,0 +1,207 @@
+{
+  "ROSTemplateFormatVersion": "2015-09-01",
+  "Description": "一键创建SNAT网关",
+  "Parameters": {
+    "SecurityGroupName": {
+      "Description": "安全组名称",
+      "Default": "ROS_SNAT_SG",
+      "Type": "String"
+    },
+    "VpcCidrBlock": {
+      "Type": "String",
+      "AllowedValues": [
+        "192.168.0.0/16",
+        "172.16.0.0/12",
+        "10.0.0.0/8"
+      ],
+      "Default": "10.0.0.0/8"
+    },
+    "VSwitchCidrBlock": {
+      "Type": "String",
+      "Description": "VSwitch网段，此网段必须属于VPC",
+      "Default": "10.0.1.0/24"
+    },
+    "ECSZoneId": {
+      "Type": "String",
+      "Description": "可用区, , <a href='#/product/cn-shenzhen/list/zoneList' target='_blank'>查看可用区</a>"
+    },
+    "ECSTag": {
+      "Type": "String",
+      "Description": "ECS的标签"
+    }
+  },
+  "Resources": {
+    "Vpc": {
+      "Type": "ALIYUN::ECS::VPC",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "VpcCidrBlock"
+        }
+      }
+    },
+    "VSwitch": {
+      "Type": "ALIYUN::ECS::VSwitch",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "VSwitchCidrBlock"
+        },
+        "ZoneId": {
+          "Ref": "ECSZoneId"
+        },
+        "VpcId": {
+          "Fn::GetAtt": [
+            "Vpc",
+            "VpcId"
+          ]
+        }
+      }
+    },
+    "NatGateway": {
+      "DependsOn": "VSwitch",
+      "Type": "ALIYUN::ECS::NatGateway",
+      "Properties": {
+        "VpcId": {
+          "Fn::GetAtt": [
+            "Vpc",
+            "VpcId"
+          ]
+        },
+        "Description": "NAT网关",
+        "NatGatewayName": "NAT",
+        "VSwitchId": {
+          "Fn::GetAtt": [
+            "VSwitch",
+            "VSwitchID"
+          ]
+        },
+        "BandwidthPackage": [
+          {
+            "IpCount": "2",
+            "Bandwidth": "5",
+            "ZoneId": {
+              "Ref": "ECSZoneId"
+            }
+          }
+        ],
+        "Spec": "Small"
+      }
+    },
+    "SNatEntry": {
+      "Type": "ALIYUN::ECS::SNatEntry",
+      "Properties": {
+        "SNatTableId": {
+          "Fn::GetAtt": [
+            "NatGateway",
+            "SNatTableId"
+          ]
+        },
+        "SNatIp": {
+          "Fn::Select": [
+            "0",
+            {
+              "Fn::GetAtt": [
+                "NatGateway",
+                "BandwidthPackageIps"
+              ]
+            }
+          ]
+        },
+        "SourceVSwitchId": {
+          "Fn::GetAtt": [
+            "VSwitch",
+            "VSwitchID"
+          ]
+        }
+      }
+    },
+    "ForwardEntry": {
+      "Type": "ALIYUN::ECS::ForwardEntry",
+      "Properties": {
+        "ForwardTableId": {
+          "Fn::GetAtt": [
+            "NatGateway",
+            "ForwardTableId"
+          ]
+        },
+        "ExternalIp": {
+          "Fn::Select": [
+            "1",
+            {
+              "Fn::GetAtt": [
+                "NatGateway",
+                "BandwidthPackageIps"
+              ]
+            }
+          ]
+        },
+        "ExternalPort": "22",
+        "IpProtocol": "TCP",
+        "InternalIp": {
+          "Fn::GetAtt": [
+            "sshInstance",
+            "InnerIp"
+          ]
+        },
+        "InternalPort": "22"
+      }
+    },
+    "sshInstance": {
+      "Type": "ALIYUN::ECS::Instance",
+      "Properties": {
+        "ImageId": "m-wz99e6ul3cmviw3xnw3g",
+        "InstanceType": "ecs.t1.small",
+        "SecurityGroupId": "sg-wz9aelo8l9hkinjto0v5",
+        "ZoneId": {
+          "Ref": "ECSZoneId"
+        },
+        "InstanceName": "ssh-server",
+        "InternetChargeType": "PayByTraffic",
+        "AllocatePublicIP": "false",
+        "InternetMaxBandwidthOut": "0",
+        "VpcId": {
+          "Fn::GetAtt": [
+            "Vpc",
+            "VpcId"
+          ]
+        },
+        "VSwitchId": {
+          "Fn::GetAtt": [
+            "VSwitch",
+            "VSwitchID"
+          ]
+        },
+        "Password": "Password123"
+      }
+    },
+    "InstanceGroup": {
+      "Type": "ALIYUN::ECS::InstanceGroup",
+      "Properties": {
+        "ImageId": "m-wz99e6ul3cmviw3xnw3g",
+        "InstanceType": "ecs.t1.small",
+        "SecurityGroupId": "sg-wz9aelo8l9hkinjto0v5",
+        "ZoneId": {
+          "Ref": "ECSZoneId"
+        },
+        "InstanceName": "web-server",
+        "InternetChargeType": "PayByTraffic",
+        "InternetMaxBandwidthOut": "0",
+        "AllocatePublicIP": "false",
+        "VpcId": {
+          "Fn::GetAtt": [
+            "Vpc",
+            "VpcId"
+          ]
+        },
+        "VSwitchId": {
+          "Fn::GetAtt": [
+            "VSwitch",
+            "VSwitchID"
+          ]
+        },
+        "Password": "Password123",
+        "MaxAmount": "2",
+        "MinAmount": "2"
+      }
+    }
+  }
+}
