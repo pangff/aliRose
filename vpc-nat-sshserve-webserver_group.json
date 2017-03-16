@@ -1,6 +1,6 @@
 {
   "ROSTemplateFormatVersion": "2015-09-01",
-  "Description": "一键创建SNAT网关",
+  "Description": "Vpc框架",
   "Parameters": {
     "SecurityGroupName": {
       "Description": "安全组名称",
